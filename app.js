@@ -150,10 +150,21 @@ function uniqueImportId(t){
  const base=`${t.date}|${t.type}|${t.amount}|${t.category}|${t.note||''}`;
  return base;
 }
+function readTextFile(file){
+ return new Promise((resolve,reject)=>{
+   const reader=new FileReader();
+   reader.onload=()=>resolve(String(reader.result||''));
+   reader.onerror=()=>reject(reader.error||new Error('Datei konnte nicht gelesen werden.'));
+   reader.readAsText(file,'UTF-8');
+ });
+}
 $('monefyFile').onchange=async e=>{
  const file=e.target.files?.[0]; if(!file)return;
+ const importLabel=e.target.closest('label');
+ const oldLabel=importLabel?.childNodes?.[0]?.textContent||'Monefy CSV importieren';
+ if(importLabel&&importLabel.childNodes[0])importLabel.childNodes[0].textContent='Datei wird gelesen… ';
  try{
-   let text=(await file.text()).replace(/^\uFEFF/,'');
+   let text=(await readTextFile(file)).replace(/^\uFEFF/,'');
    const rows=splitSemicolonCSV(text);
    if(rows.length<2)throw new Error('Keine Datenzeilen gefunden.');
    const headers=rows[0].map(h=>h.trim().replace(/^"|"$/g,'').toLowerCase());
