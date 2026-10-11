@@ -35,7 +35,11 @@ function renderChart(tx){
    const circle=`<circle cx="120" cy="120" r="88" fill="none" stroke="${palette[i%palette.length]}" stroke-width="34" stroke-linecap="butt" stroke-dasharray="${dash} ${circumference-dash}" stroke-dashoffset="${-offset}"></circle>`;
    offset+=len; return circle;
  }).join('');
- $('chartLegend').innerHTML=entries.map(([c,v],i)=>`<button class="legendRow orbitItem" data-detail="${encodeURIComponent(c)}"><span class="legendIcon" style="--catColor:${palette[i%palette.length]}">${icon(c)}</span><span class="legendText"><b>${esc(c)}</b><strong>${Math.round(v/total*100)}%</strong></span></button>`).join('');
+ let angleAcc=0;
+ $('chartLegend').innerHTML=entries.map(([c,v],i)=>{
+   const share=v/total, mid=angleAcc+share*180; angleAcc+=share*360;
+   return `<button class="orbitLabel" style="--angle:${mid}deg;--catColor:${palette[i%palette.length]}" data-detail="${encodeURIComponent(c)}" aria-label="${esc(c)} ${Math.round(share*100)} Prozent"><span class="orbitBubble">${icon(c)}</span><strong>${Math.round(share*100)}%</strong><small>${esc(c)}</small></button>`
+ }).join('');
  document.querySelectorAll('[data-detail]').forEach(b=>b.onclick=()=>showCategoryDetail(decodeURIComponent(b.dataset.detail)));
 }
 function render(){

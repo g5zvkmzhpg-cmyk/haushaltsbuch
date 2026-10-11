@@ -147,3 +147,37 @@
   background:var(--card) !important;
   border-radius:50%;
 }
+\n/* Version 4.5 — dashboard matched to visual concept */
+.dashboardChart{padding:18px 14px 12px;overflow:hidden}
+.dashboardChart .sectionHead{padding:0 4px 4px;margin-bottom:0}
+.dashboardChart h2{font-size:clamp(20px,5.5vw,27px);letter-spacing:-.025em}
+.chartStage{position:relative!important;display:block!important;height:390px!important;padding:0!important;margin-top:2px}
+.svgDonut{position:absolute!important;left:50%!important;top:50%!important;transform:translate(-50%,-50%)!important;width:248px!important;height:248px!important;margin:0!important}
+.donutTrack{stroke-width:30!important}
+#donutSegments circle{stroke-width:30!important}
+.svgDonut>.donutCenter{inset:25%!important;background:#fff!important;gap:8px!important}
+.donutCenter strong{font-size:1.2rem!important;font-weight:800!important;letter-spacing:-.025em}
+.orbitLegend{position:absolute!important;inset:0!important;display:block!important;pointer-events:none}
+.orbitLabel{--radius:166px;position:absolute!important;left:50%!important;top:50%!important;width:74px!important;min-width:74px!important;padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important;color:#14264a!important;display:flex!important;flex-direction:column!important;align-items:center!important;gap:1px!important;transform:translate(-50%,-50%) rotate(var(--angle)) translateY(calc(-1 * var(--radius))) rotate(calc(-1 * var(--angle)))!important;pointer-events:auto!important}
+.orbitBubble{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#fff;border:3px solid var(--catColor);font-size:20px;line-height:1;box-shadow:0 4px 12px rgba(0,0,0,.07)}
+.orbitLabel strong{font-size:.9rem;line-height:1.05;margin-top:2px}.orbitLabel small{font-size:.64rem;line-height:1.05;color:#68758b;max-width:74px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.quickCircles{margin:2px 0 4px!important;gap:54px!important}
+.quickCircles .roundAction{width:82px!important;height:82px!important;min-width:82px!important;flex-basis:82px!important;font-size:3.7rem!important;box-shadow:0 7px 18px rgba(0,0,0,.11)!important}
+.compactBalance{background:#fff!important;border-radius:22px!important;box-shadow:0 1px 12px #0000000a!important;padding:16px!important;margin:12px 0 18px!important}
+.compactBalance>span{font-size:.82rem!important}.compactBalance>strong{font-size:2.25rem!important}
+@media(max-width:430px){
+ .dashboardChart{margin-left:0;margin-right:0;padding-left:8px;padding-right:8px}
+ .chartStage{height:370px!important}
+ .svgDonut{width:224px!important;height:224px!important}
+ .donutTrack,#donutSegments circle{stroke-width:28!important}
+ .orbitLabel{--radius:151px;width:64px!important;min-width:64px!important}
+ .orbitBubble{width:38px;height:38px;font-size:18px;border-width:2px}
+ .orbitLabel small{max-width:64px;font-size:.58rem}.orbitLabel strong{font-size:.82rem}
+ .donutCenter strong{font-size:1.05rem!important}
+}
+@media(max-width:365px){
+ .chartStage{height:344px!important}
+ .svgDonut{width:204px!important;height:204px!important}
+ .orbitLabel{--radius:139px}
+ .orbitBubble{width:35px;height:35px}
+}
