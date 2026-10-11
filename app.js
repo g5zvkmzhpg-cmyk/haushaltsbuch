@@ -18,16 +18,18 @@ function renderCategories(){
  document.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>deleteCategory(decodeURIComponent(b.dataset.delete)));
 }
 function renderChart(tx){
- const expenses=tx.filter(t=>t.type==='expense'), total=expenses.reduce((s,t)=>s+t.amount,0), sums={};
+ const expenses=tx.filter(t=>t.type==='expense'), incomes=tx.filter(t=>t.type==='income');
+ const total=expenses.reduce((s,t)=>s+t.amount,0), incomeTotal=incomes.reduce((s,t)=>s+t.amount,0), sums={};
  expenses.forEach(t=>sums[t.category]=(sums[t.category]||0)+t.amount);
  const entries=Object.entries(sums).sort((a,b)=>b[1]-a[1]);
- $('chartTotal').textContent=money(total);
+ $('chartIncome').textContent=`+ ${money(incomeTotal)}`;
+ $('chartExpense').textContent=`− ${money(total)}`;
  if(!total){$('donut').style.background='var(--soft)';$('chartLegend').innerHTML='<div class="empty">Noch keine Ausgaben in diesem Monat.</div>';return}
- const palette=['#007aff','#34c759','#ff9500','#af52de','#ff3b30','#5ac8fa','#ffcc00','#5856d6','#30b0c7','#8e8e93'];
+ const palette=['#2f80ed','#43b92d','#ff9f0a','#7545d8','#ff375f','#19b8bd','#ffcc00','#5856d6','#30b0c7','#7f8b99'];
  let acc=0,stops=[];
- entries.forEach(([c,v],i)=>{let start=acc, end=acc+v/total*360;stops.push(`${palette[i%palette.length]} ${start}deg ${end}deg`);acc=end});
+ entries.forEach(([c,v],i)=>{let start=acc,end=acc+v/total*360;stops.push(`${palette[i%palette.length]} ${start}deg ${end}deg`);acc=end});
  $('donut').style.background=`conic-gradient(${stops.join(',')})`;
- $('chartLegend').innerHTML=entries.map(([c,v],i)=>`<button class="legendRow" data-detail="${encodeURIComponent(c)}"><span class="dot" style="background:${palette[i%palette.length]}"></span><span>${icon(c)} ${esc(c)}</span><b>${money(v)}</b><small>${Math.round(v/total*100)} %</small></button>`).join('');
+ $('chartLegend').innerHTML=entries.map(([c,v],i)=>`<button class="legendRow orbitItem" data-detail="${encodeURIComponent(c)}"><span class="legendIcon" style="--catColor:${palette[i%palette.length]}">${icon(c)}</span><span class="legendText"><b>${esc(c)}</b><strong>${Math.round(v/total*100)}%</strong></span></button>`).join('');
  document.querySelectorAll('[data-detail]').forEach(b=>b.onclick=()=>showCategoryDetail(decodeURIComponent(b.dataset.detail)));
 }
 function render(){
