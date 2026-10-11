@@ -38,3 +38,21 @@
  .legendText b{font-size:.76rem}.legendText strong{font-size:.88rem}
  .roundAction{width:58px;height:58px}
 }
+
+/* Version 4.1 refinements */
+.heroDonut:after{inset:82px} /* thinner ring / larger open center */
+.heroDonut>.donutCenter{inset:92px}
+.compactBalance{text-align:center;margin:2px 0 12px;padding:4px 10px 8px;background:transparent;box-shadow:none}
+.compactBalance>span{display:block;color:var(--muted);font-size:.9rem;font-weight:650;margin-bottom:3px}
+.compactBalance>strong{font-size:clamp(1.8rem,8vw,2.8rem);letter-spacing:-.04em}
+.quickCircles{display:flex;justify-content:center;align-items:center;gap:42px;margin:8px 0 22px}
+.quickCircles .roundAction{border:0;width:88px;height:88px;font-size:4.2rem;padding:0;cursor:pointer}
+@media(max-width:650px){
+ .heroDonut:after{inset:76px}
+ .heroDonut>.donutCenter{inset:86px}
+ .quickCircles{gap:48px}
+ .quickCircles .roundAction{width:82px;height:82px;font-size:3.9rem}
+}
+
+/* Version 4.2 */
+.quickCircles{margin-bottom:8px}.compactBalance{margin-top:0;margin-bottom:22px}
