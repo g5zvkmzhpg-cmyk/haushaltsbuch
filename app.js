@@ -24,11 +24,17 @@ function renderChart(tx){
  const entries=Object.entries(sums).sort((a,b)=>b[1]-a[1]);
  $('chartIncome').textContent=`+ ${money(incomeTotal)}`;
  $('chartExpense').textContent=`− ${money(total)}`;
- if(!total){$('donut').style.background='var(--soft)';$('chartLegend').innerHTML='<div class="empty">Noch keine Ausgaben in diesem Monat.</div>';return}
+ if(!total){$('donutSegments').innerHTML='';$('chartLegend').innerHTML='<div class="empty">Noch keine Ausgaben in diesem Monat.</div>';return}
  const palette=['#2f80ed','#43b92d','#ff9f0a','#7545d8','#ff375f','#19b8bd','#ffcc00','#5856d6','#30b0c7','#7f8b99'];
  let acc=0,stops=[];
  entries.forEach(([c,v],i)=>{let start=acc,end=acc+v/total*360;stops.push(`${palette[i%palette.length]} ${start}deg ${end}deg`);acc=end});
- $('donut').style.background=`conic-gradient(${stops.join(',')})`;
+ const circumference=2*Math.PI*88;
+ let offset=0;
+ $('donutSegments').innerHTML=entries.map(([c,v],i)=>{
+   const len=v/total*circumference, gap=Math.min(3,circumference*0.006), dash=Math.max(0,len-gap);
+   const circle=`<circle cx="120" cy="120" r="88" fill="none" stroke="${palette[i%palette.length]}" stroke-width="34" stroke-linecap="butt" stroke-dasharray="${dash} ${circumference-dash}" stroke-dashoffset="${-offset}"></circle>`;
+   offset+=len; return circle;
+ }).join('');
  $('chartLegend').innerHTML=entries.map(([c,v],i)=>`<button class="legendRow orbitItem" data-detail="${encodeURIComponent(c)}"><span class="legendIcon" style="--catColor:${palette[i%palette.length]}">${icon(c)}</span><span class="legendText"><b>${esc(c)}</b><strong>${Math.round(v/total*100)}%</strong></span></button>`).join('');
  document.querySelectorAll('[data-detail]').forEach(b=>b.onclick=()=>showCategoryDetail(decodeURIComponent(b.dataset.detail)));
 }
