@@ -210,3 +210,33 @@ document.querySelectorAll('.cancelDialog').forEach(btn=>btn.addEventListener('cl
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('cancel',e=>{e.preventDefault();d.close()}));
 
 fillCats();applyRecurring();render();if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+
+
+// Version 4.8 — swipe month navigation
+(()=>{
+ const surface=document.querySelector('main')||document.body;
+ let startX=0,startY=0,startTime=0,tracking=false;
+
+ surface.addEventListener('touchstart',e=>{
+   if(e.touches.length!==1)return;
+   const target=e.target;
+   // Do not start month navigation while interacting with forms, dialogs or buttons.
+   if(target.closest('dialog,input,select,textarea,button,label')){tracking=false;return}
+   const t=e.touches[0];
+   startX=t.clientX; startY=t.clientY; startTime=Date.now(); tracking=true;
+ },{passive:true});
+
+ surface.addEventListener('touchend',e=>{
+   if(!tracking||!e.changedTouches.length)return;
+   tracking=false;
+   const t=e.changedTouches[0], dx=t.clientX-startX, dy=t.clientY-startY;
+   const elapsed=Date.now()-startTime;
+   // Require a deliberate horizontal swipe; normal vertical scrolling is ignored.
+   if(elapsed>900||Math.abs(dx)<65||Math.abs(dx)<Math.abs(dy)*1.35)return;
+   if(dx>0){
+     view.setMonth(view.getMonth()-1); applyRecurring(); render();
+   }else{
+     view.setMonth(view.getMonth()+1); applyRecurring(); render();
+   }
+ },{passive:true});
+})();
