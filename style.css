@@ -201,3 +201,6 @@
  .txRight{flex-direction:column;align-items:flex-end;gap:5px}
  .iconBtn{width:32px;height:32px}
 }
+
+/* v4.7.2 */
+.csvCats{padding:10px 0}.csvCats p{margin:6px 0;color:var(--muted);line-height:1.5}

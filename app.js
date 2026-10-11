@@ -106,21 +106,26 @@ $('editTxForm').onsubmit=e=>{
 };
 
 let pendingMonefy=[];
+let pendingMonefyCategories=[];
 
 function parseMonefyAmount(raw){
- let s=String(raw??'').trim().replace(/\s/g,'').replace(/[€]/g,'');
+ let s=String(raw??'').trim().replace(/\u00A0/g,'').replace(/\s/g,'').replace(/[€$£]/g,'').replace(/[−–—]/g,'-').replace(/^\((.*)\)$/,'-$1');
  if(!s)return NaN;
- // Supports -12,50 / 1250 / 1.250,50 / 1,250.50
+ s=s.replace(/[^\d,.\-+]/g,'');
  if(s.includes(',')&&s.includes('.')){
    if(s.lastIndexOf(',')>s.lastIndexOf('.')) s=s.replace(/\./g,'').replace(',','.');
    else s=s.replace(/,/g,'');
- } else if(s.includes(',')) s=s.replace(/\./g,'').replace(',','.');
+ }else if(s.includes(',')) s=s.replace(/\./g,'').replace(',','.');
+ else if((s.match(/\./g)||[]).length>1) s=s.replace(/\./g,'');
  return Number(s);
 }
 function parseMonefyDate(raw){
- const m=String(raw??'').trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
- if(!m)return '';
- return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+ const s=String(raw??'').trim();
+ let m=s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})(?:\s.*)?$/);
+ if(m)return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+ m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:\s.*)?$/);
+ if(m)return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+ return '';
 }
 function splitSemicolonCSV(text){
  text=text.replace(/^\uFEFF/,'');
@@ -148,46 +153,48 @@ function uniqueImportId(t){
 $('monefyFile').onchange=async e=>{
  const file=e.target.files?.[0]; if(!file)return;
  try{
-   const rows=splitSemicolonCSV(await file.text());
-   if(rows.length<2)throw new Error('Keine Daten gefunden.');
-   const headers=rows[0].map(h=>h.trim().toLowerCase());
+   let text=(await file.text()).replace(/^\uFEFF/,'');
+   const rows=splitSemicolonCSV(text);
+   if(rows.length<2)throw new Error('Keine Datenzeilen gefunden.');
+   const headers=rows[0].map(h=>h.trim().replace(/^"|"$/g,'').toLowerCase());
    const idx=name=>headers.indexOf(name);
-   const dateI=idx('date'), catI=idx('category'), amountI=idx('amount'), descI=idx('description');
-   if(dateI<0||catI<0||amountI<0)throw new Error('Die Spalten date, category und amount wurden nicht gefunden.');
-   const parsed=[], skipped=[];
+   const dateI=idx('date'),catI=idx('category'),amountI=idx('amount'),descI=idx('description');
+   if(dateI<0||catI<0||amountI<0)throw new Error(`Monefy-Spalten nicht erkannt. Gefunden: ${headers.join(', ')}`);
+   const parsed=[],skipped=[],allCsvCats=[];
    rows.slice(1).forEach((r,n)=>{
-     const date=parseMonefyDate(r[dateI]), category=String(r[catI]??'').trim(), signed=parseMonefyAmount(r[amountI]);
+     const category=String(r[catI]??'').trim().replace(/^"|"$/g,'');
+     if(category&&!allCsvCats.includes(category))allCsvCats.push(category);
+     const date=parseMonefyDate(r[dateI]),signed=parseMonefyAmount(r[amountI]);
      if(!date||!category||!Number.isFinite(signed)||signed===0){skipped.push(n+2);return}
-     parsed.push({id:crypto.randomUUID(),type:signed<0?'expense':'income',amount:Math.abs(signed),category,date,note:descI>=0?String(r[descI]??'').trim():''});
+     parsed.push({id:crypto.randomUUID(),type:signed<0?'expense':'income',amount:Math.abs(signed),category,date,note:descI>=0?String(r[descI]??'').trim().replace(/^"|"$/g,''):''});
    });
-   pendingMonefy=parsed;
-   const inc=parsed.filter(t=>t.type==='income'), exp=parsed.filter(t=>t.type==='expense');
-   const newCats=[...new Set(parsed.map(t=>t.category))].filter(c=>!cats()[c]);
+   pendingMonefy=parsed; pendingMonefyCategories=allCsvCats;
+   const inc=parsed.filter(t=>t.type==='income'),exp=parsed.filter(t=>t.type==='expense');
+   const newCats=allCsvCats.filter(c=>!Object.prototype.hasOwnProperty.call(cats(),c));
    const existing=new Set(db.transactions.map(uniqueImportId));
    const dupes=parsed.filter(t=>existing.has(uniqueImportId(t))).length;
    $('monefyFileName').textContent=file.name;
    $('monefySummary').innerHTML=`<div><b>${parsed.length}</b><small>Buchungen erkannt</small></div><div class="positive"><b>${inc.length}</b><small>Einnahmen</small></div><div class="negative"><b>${exp.length}</b><small>Ausgaben</small></div><div><b>${newCats.length}</b><small>neue Kategorien</small></div>`;
-   $('monefyWarnings').innerHTML=(skipped.length?`<p>⚠️ ${skipped.length} Zeile(n) ohne gültiges Datum, Kategorie oder Betrag werden übersprungen.</p>`:'')+(dupes?`<p>ℹ️ ${dupes} bereits vorhandene identische Buchung(en) werden nicht erneut importiert.</p>`:'');
-   $('monefyPreview').innerHTML=parsed.slice(0,8).map(t=>`<div class="importRow"><span>${new Date(t.date+'T12:00').toLocaleDateString('de-AT')}</span><span>${esc(t.category)}</span><b class="${t.type==='expense'?'negative':'positive'}">${t.type==='expense'?'−':'+'}${money(t.amount)}</b></div>`).join('')+(parsed.length>8?`<small class="muted">… und ${parsed.length-8} weitere</small>`:'');
-   $('monefyImportBtn').disabled=!parsed.length;
+   let warning='';
+   if(skipped.length)warning+=`<p>⚠️ ${skipped.length} Zeile(n) ohne gültigen Betrag/Datum werden als Buchung übersprungen. Kategorien daraus werden trotzdem erkannt.</p>`;
+   if(dupes)warning+=`<p>ℹ️ ${dupes} identische vorhandene Buchung(en) werden nicht doppelt importiert.</p>`;
+   if(!parsed.length&&allCsvCats.length)warning+=`<p>ℹ️ Keine Buchungen mit Betrag gefunden, aber ${allCsvCats.length} Kategorien wurden erkannt.</p>`;
+   $('monefyWarnings').innerHTML=warning;
+   $('monefyPreview').innerHTML=(newCats.length?`<div class="csvCats"><b>Neue Kategorien:</b><p>${newCats.map(esc).join(' · ')}</p></div>`:'')+parsed.slice(0,8).map(t=>`<div class="importRow"><span>${new Date(t.date+'T12:00').toLocaleDateString('de-AT')}</span><span>${esc(t.category)}</span><b class="${t.type==='expense'?'negative':'positive'}">${t.type==='expense'?'−':'+'}${money(t.amount)}</b></div>`).join('');
+   $('monefyImportBtn').disabled=(!parsed.length&&!newCats.length);
+   $('monefyImportBtn').textContent=parsed.length?'Importieren':'Kategorien importieren';
    $('monefyDialog').showModal();
- }catch(err){alert('Monefy-Datei konnte nicht gelesen werden: '+(err.message||'Unbekannter Fehler'))}
+ }catch(err){console.error(err);alert('Monefy-Datei konnte nicht gelesen werden:\n'+(err.message||'Unbekannter Fehler'))}
  finally{e.target.value=''}
 };
 $('monefyForm').onsubmit=e=>{
  e.preventDefault();
- if(!pendingMonefy.length)return;
- const existing=new Set(db.transactions.map(uniqueImportId));
- let added=0;
- pendingMonefy.forEach(t=>{
-   if(existing.has(uniqueImportId(t)))return;
-   if(!cats()[t.category]) db.categories[t.category]=defaultCats[t.category]||'•';
-   db.transactions.push(t); existing.add(uniqueImportId(t)); added++;
- });
- save(); $('monefyDialog').close(); pendingMonefy=[]; render();
- alert(`${added} Monefy-Buchung${added===1?'':'en'} importiert.`);
+ const existing=new Set(db.transactions.map(uniqueImportId)); let added=0,catsAdded=0;
+ pendingMonefyCategories.forEach(category=>{if(!Object.prototype.hasOwnProperty.call(cats(),category)){db.categories[category]=defaultCats[category]||'•';catsAdded++}});
+ pendingMonefy.forEach(t=>{if(existing.has(uniqueImportId(t)))return;db.transactions.push(t);existing.add(uniqueImportId(t));added++});
+ save();$('monefyDialog').close();pendingMonefy=[];pendingMonefyCategories=[];render();
+ alert(`${added} Buchung${added===1?'':'en'} und ${catsAdded} neue Kategorie${catsAdded===1?'':'n'} aus Monefy importiert.`);
 };
-
 document.querySelectorAll('.cancelDialog').forEach(btn=>btn.addEventListener('click',()=>btn.closest('dialog')?.close()));
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('cancel',e=>{e.preventDefault();d.close()}));
 
