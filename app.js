@@ -212,52 +212,56 @@ document.querySelectorAll('dialog').forEach(d=>d.addEventListener('cancel',e=>{e
 fillCats();applyRecurring();render();if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 
 
-// Version 4.8.1 — robust iPhone swipe month navigation
+// Version 4.8.2 — iOS touch swipe with active gesture capture
 (()=>{
- let sx=0,sy=0,active=false;
- const blocked=el=>el && el.closest && el.closest('dialog,input,select,textarea,button,label');
+ const area=document.body;
+ let sx=0, sy=0, lastX=0, swiping=false, horizontal=false;
+ const blocked=el=>el?.closest?.('dialog,input,select,textarea,button,label');
 
- function begin(x,y,target){
-   if(blocked(target)){active=false;return}
-   sx=x; sy=y; active=true;
- }
- function finish(x,y){
-   if(!active)return;
-   active=false;
-   const dx=x-sx, dy=y-sy;
-   // Horizontal movement must be clear and dominant.
-   if(Math.abs(dx)<45 || Math.abs(dx)<=Math.abs(dy)*1.15)return;
-   view.setMonth(view.getMonth()+(dx>0?-1:1));
+ function monthChange(delta){
+   view.setMonth(view.getMonth()+delta);
    applyRecurring();
    render();
-   // small visual feedback on the month title
    const mt=$('monthTitle');
    if(mt){mt.classList.remove('monthFlash');void mt.offsetWidth;mt.classList.add('monthFlash')}
  }
 
- // Pointer Events are supported by current iOS Safari/PWAs.
- document.addEventListener('pointerdown',e=>{
-   if(e.pointerType!=='touch')return;
-   begin(e.clientX,e.clientY,e.target);
- },{passive:true});
- document.addEventListener('pointerup',e=>{
-   if(e.pointerType!=='touch')return;
-   finish(e.clientX,e.clientY);
- },{passive:true});
- document.addEventListener('pointercancel',()=>active=false,{passive:true});
-
- // Fallback for older WebKit where touch events are more reliable.
- let touchStarted=false;
- document.addEventListener('touchstart',e=>{
-   if(e.touches.length!==1)return;
+ area.addEventListener('touchstart',e=>{
+   if(e.touches.length!==1 || blocked(e.target)){swiping=false;return}
    const t=e.touches[0];
-   begin(t.clientX,t.clientY,e.target);
-   touchStarted=true;
- },{passive:true});
- document.addEventListener('touchend',e=>{
-   if(!touchStarted||!e.changedTouches.length)return;
-   touchStarted=false;
-   const t=e.changedTouches[0];
-   finish(t.clientX,t.clientY);
- },{passive:true});
+   sx=lastX=t.clientX; sy=t.clientY;
+   swiping=true; horizontal=false;
+ },{passive:true,capture:true});
+
+ area.addEventListener('touchmove',e=>{
+   if(!swiping || e.touches.length!==1)return;
+   const t=e.touches[0], dx=t.clientX-sx, dy=t.clientY-sy;
+   lastX=t.clientX;
+
+   // Decide direction only after a small intentional movement.
+   if(!horizontal && Math.abs(dx)>12){
+     if(Math.abs(dx)>Math.abs(dy)*1.15) horizontal=true;
+     else if(Math.abs(dy)>Math.abs(dx)){swiping=false;return}
+   }
+   if(horizontal){
+     // Stop Safari from turning the gesture into page navigation/scrolling.
+     e.preventDefault();
+     const mt=$('monthTitle');
+     if(mt) mt.style.transform=`translateX(${Math.max(-28,Math.min(28,dx*.16))}px)`;
+   }
+ },{passive:false,capture:true});
+
+ area.addEventListener('touchend',e=>{
+   if(!swiping)return;
+   const dx=(e.changedTouches[0]?.clientX ?? lastX)-sx;
+   const mt=$('monthTitle'); if(mt)mt.style.transform='';
+   swiping=false;
+   if(horizontal && Math.abs(dx)>=50) monthChange(dx>0?-1:1);
+   horizontal=false;
+ },{passive:true,capture:true});
+
+ area.addEventListener('touchcancel',()=>{
+   swiping=false;horizontal=false;
+   const mt=$('monthTitle'); if(mt)mt.style.transform='';
+ },{passive:true,capture:true});
 })();

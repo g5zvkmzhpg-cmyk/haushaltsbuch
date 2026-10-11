@@ -212,3 +212,7 @@ main{touch-action:pan-y}
 @keyframes monthFlash{0%{opacity:.35;transform:translateY(2px)}100%{opacity:1;transform:none}}
 .monthFlash{animation:monthFlash .18s ease-out}
 html,body{overscroll-behavior-x:none}
+
+/* Version 4.8.2 */
+#monthTitle{transition:transform .12s ease-out;will-change:transform}
+.monthFlash{animation:monthFlash .18s ease-out}
