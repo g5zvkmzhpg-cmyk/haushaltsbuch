@@ -45,7 +45,7 @@ function renderChart(tx){
 function render(){
  let k=ym(view),tx=db.transactions.filter(t=>t.date.startsWith(k)).sort((a,b)=>b.date.localeCompare(a.date)),inc=tx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0),exp=tx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
  $('monthTitle').textContent=new Intl.DateTimeFormat('de-AT',{month:'long',year:'numeric'}).format(view);$('income').textContent=money(inc);$('expense').textContent=money(exp);$('available').textContent=money(inc-exp);
- $('txList').innerHTML=tx.length?tx.map(t=>`<div class='row'><div class='meta'><span class='emoji'>${icon(t.category)}</span><div><b>${esc(t.note||t.category)}</b><small>${esc(t.category)} · ${new Date(t.date+'T12:00').toLocaleDateString('de-AT')}</small></div></div><b class='${t.type==='expense'?'negative':'positive'}'>${t.type==='expense'?'−':'+'}${money(t.amount)}</b></div>`).join(''):`<div class='empty'>Noch keine Buchungen in diesem Monat.</div>`;
+ $('txList').innerHTML=tx.length?tx.map(t=>`<div class='row txEditable'><div class='meta'><span class='emoji'>${icon(t.category)}</span><div><b>${esc(t.note||t.category)}</b><small>${esc(t.category)} · ${new Date(t.date+'T12:00').toLocaleDateString('de-AT')}</small></div></div><div class='txRight'><b class='${t.type==='expense'?'negative':'positive'}'>${t.type==='expense'?'−':'+'}${money(t.amount)}</b><div class='txActions'><button type='button' class='iconBtn editTx' data-id='${t.id}' aria-label='Buchung bearbeiten'>✎</button><button type='button' class='iconBtn deleteTx' data-id='${t.id}' aria-label='Buchung löschen'>🗑</button></div></div></div>`).join(''):`<div class='empty'>Noch keine Buchungen in diesem Monat.</div>`;
  $('recurringList').innerHTML=db.recurring.length?db.recurring.map(r=>`<div class='row'><div class='meta'><span class='emoji'>${icon(r.category)}</span><div><b>${esc(r.name)}</b><small>monatlich am ${r.day}. · ${esc(r.category)}</small></div></div><b>${r.type==='expense'?'−':'+'}${money(r.amount)}</b></div>`).join(''):`<div class='empty'>Keine monatlichen Buchungen eingerichtet.</div>`;
  fillCats();renderCategories();renderChart(tx);
 }
@@ -64,6 +64,125 @@ $('prevMonth').onclick=()=>{view.setMonth(view.getMonth()-1);render()};$('nextMo
 function download(name,type,text){let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
 $('csvBtn').onclick=()=>{let k=ym(view),rows=[['Datum','Art','Kategorie','Notiz','Betrag'],...db.transactions.filter(t=>t.date.startsWith(k)).map(t=>[t.date,t.type==='income'?'Einnahme':'Ausgabe',t.category,t.note||'',String(t.amount).replace('.',',')])];download(`haushaltsbuch-${k}.csv`,'text/csv;charset=utf-8','\ufeff'+rows.map(r=>r.map(x=>'"'+String(x).replaceAll('"','""')+'"').join(';')).join('\n'))};
 $('backupBtn').onclick=()=>download('haushaltsbuch-backup.json','application/json',JSON.stringify(db,null,2));$('importFile').onchange=async e=>{try{let x=JSON.parse(await e.target.files[0].text());if(!Array.isArray(x.transactions)||!Array.isArray(x.recurring))throw 0;db=x;if(!db.categories)db.categories={...defaultCats};save();render();alert('Backup wurde importiert.')}catch{alert('Dieses Backup konnte nicht gelesen werden.')}};
+
+
+
+function openEditTransaction(id){
+ const t=db.transactions.find(x=>x.id===id); if(!t)return;
+ $('editTxId').value=t.id;
+ $('editTxType').value=t.type;
+ $('editTxAmount').value=String(t.amount);
+ $('editTxDate').value=t.date;
+ $('editTxNote').value=t.note||'';
+ fillSelect($('editTxCategory'),t.category);
+ $('editTxDialog').showModal();
+}
+$('txList').addEventListener('click',e=>{
+ const edit=e.target.closest('.editTx'), del=e.target.closest('.deleteTx');
+ if(edit){openEditTransaction(edit.dataset.id);return}
+ if(del){
+   const t=db.transactions.find(x=>x.id===del.dataset.id); if(!t)return;
+   const label=`${t.type==='expense'?'Ausgabe':'Einnahme'} ${money(t.amount)} – ${t.category}`;
+   if(confirm(`Diese Buchung wirklich löschen?\n\n${label}`)){
+     db.transactions=db.transactions.filter(x=>x.id!==t.id); save(); render();
+   }
+ }
+});
+$('editTxForm').onsubmit=e=>{
+ e.preventDefault();
+ const id=$('editTxId').value, t=db.transactions.find(x=>x.id===id); if(!t)return;
+ const amount=Number($('editTxAmount').value);
+ if(!Number.isFinite(amount)||amount<=0){alert('Bitte einen gültigen Betrag eingeben.');return}
+ t.type=$('editTxType').value;
+ t.amount=amount;
+ t.category=$('editTxCategory').value;
+ t.date=$('editTxDate').value;
+ t.note=$('editTxNote').value.trim();
+ save(); $('editTxDialog').close(); render();
+};
+
+let pendingMonefy=[];
+
+function parseMonefyAmount(raw){
+ let s=String(raw??'').trim().replace(/\s/g,'').replace(/[€]/g,'');
+ if(!s)return NaN;
+ // Supports -12,50 / 1250 / 1.250,50 / 1,250.50
+ if(s.includes(',')&&s.includes('.')){
+   if(s.lastIndexOf(',')>s.lastIndexOf('.')) s=s.replace(/\./g,'').replace(',','.');
+   else s=s.replace(/,/g,'');
+ } else if(s.includes(',')) s=s.replace(/\./g,'').replace(',','.');
+ return Number(s);
+}
+function parseMonefyDate(raw){
+ const m=String(raw??'').trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+ if(!m)return '';
+ return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+}
+function splitSemicolonCSV(text){
+ text=text.replace(/^\uFEFF/,'');
+ const rows=[]; let row=[],field='',quoted=false;
+ for(let i=0;i<text.length;i++){
+   const ch=text[i];
+   if(ch==='"'){
+     if(quoted&&text[i+1]==='"'){field+='"';i++}
+     else quoted=!quoted;
+   }else if(ch===';'&&!quoted){row.push(field);field=''}
+   else if((ch==='\n'||ch==='\r')&&!quoted){
+     if(ch==='\r'&&text[i+1]==='\n')i++;
+     row.push(field);field='';
+     if(row.some(v=>v.trim()!==''))rows.push(row);
+     row=[];
+   }else field+=ch;
+ }
+ row.push(field); if(row.some(v=>v.trim()!==''))rows.push(row);
+ return rows;
+}
+function uniqueImportId(t){
+ const base=`${t.date}|${t.type}|${t.amount}|${t.category}|${t.note||''}`;
+ return base;
+}
+$('monefyFile').onchange=async e=>{
+ const file=e.target.files?.[0]; if(!file)return;
+ try{
+   const rows=splitSemicolonCSV(await file.text());
+   if(rows.length<2)throw new Error('Keine Daten gefunden.');
+   const headers=rows[0].map(h=>h.trim().toLowerCase());
+   const idx=name=>headers.indexOf(name);
+   const dateI=idx('date'), catI=idx('category'), amountI=idx('amount'), descI=idx('description');
+   if(dateI<0||catI<0||amountI<0)throw new Error('Die Spalten date, category und amount wurden nicht gefunden.');
+   const parsed=[], skipped=[];
+   rows.slice(1).forEach((r,n)=>{
+     const date=parseMonefyDate(r[dateI]), category=String(r[catI]??'').trim(), signed=parseMonefyAmount(r[amountI]);
+     if(!date||!category||!Number.isFinite(signed)||signed===0){skipped.push(n+2);return}
+     parsed.push({id:crypto.randomUUID(),type:signed<0?'expense':'income',amount:Math.abs(signed),category,date,note:descI>=0?String(r[descI]??'').trim():''});
+   });
+   pendingMonefy=parsed;
+   const inc=parsed.filter(t=>t.type==='income'), exp=parsed.filter(t=>t.type==='expense');
+   const newCats=[...new Set(parsed.map(t=>t.category))].filter(c=>!cats()[c]);
+   const existing=new Set(db.transactions.map(uniqueImportId));
+   const dupes=parsed.filter(t=>existing.has(uniqueImportId(t))).length;
+   $('monefyFileName').textContent=file.name;
+   $('monefySummary').innerHTML=`<div><b>${parsed.length}</b><small>Buchungen erkannt</small></div><div class="positive"><b>${inc.length}</b><small>Einnahmen</small></div><div class="negative"><b>${exp.length}</b><small>Ausgaben</small></div><div><b>${newCats.length}</b><small>neue Kategorien</small></div>`;
+   $('monefyWarnings').innerHTML=(skipped.length?`<p>⚠️ ${skipped.length} Zeile(n) ohne gültiges Datum, Kategorie oder Betrag werden übersprungen.</p>`:'')+(dupes?`<p>ℹ️ ${dupes} bereits vorhandene identische Buchung(en) werden nicht erneut importiert.</p>`:'');
+   $('monefyPreview').innerHTML=parsed.slice(0,8).map(t=>`<div class="importRow"><span>${new Date(t.date+'T12:00').toLocaleDateString('de-AT')}</span><span>${esc(t.category)}</span><b class="${t.type==='expense'?'negative':'positive'}">${t.type==='expense'?'−':'+'}${money(t.amount)}</b></div>`).join('')+(parsed.length>8?`<small class="muted">… und ${parsed.length-8} weitere</small>`:'');
+   $('monefyImportBtn').disabled=!parsed.length;
+   $('monefyDialog').showModal();
+ }catch(err){alert('Monefy-Datei konnte nicht gelesen werden: '+(err.message||'Unbekannter Fehler'))}
+ finally{e.target.value=''}
+};
+$('monefyForm').onsubmit=e=>{
+ e.preventDefault();
+ if(!pendingMonefy.length)return;
+ const existing=new Set(db.transactions.map(uniqueImportId));
+ let added=0;
+ pendingMonefy.forEach(t=>{
+   if(existing.has(uniqueImportId(t)))return;
+   if(!cats()[t.category]) db.categories[t.category]=defaultCats[t.category]||'•';
+   db.transactions.push(t); existing.add(uniqueImportId(t)); added++;
+ });
+ save(); $('monefyDialog').close(); pendingMonefy=[]; render();
+ alert(`${added} Monefy-Buchung${added===1?'':'en'} importiert.`);
+};
 
 document.querySelectorAll('.cancelDialog').forEach(btn=>btn.addEventListener('click',()=>btn.closest('dialog')?.close()));
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('cancel',e=>{e.preventDefault();d.close()}));
