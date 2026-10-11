@@ -207,3 +207,8 @@
 
 /* Version 4.8 */
 main{touch-action:pan-y}
+
+/* Version 4.8.1 swipe feedback */
+@keyframes monthFlash{0%{opacity:.35;transform:translateY(2px)}100%{opacity:1;transform:none}}
+.monthFlash{animation:monthFlash .18s ease-out}
+html,body{overscroll-behavior-x:none}
