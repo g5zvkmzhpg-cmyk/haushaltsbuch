@@ -2,6 +2,8 @@ const defaultCats={Lebensmittel:'🛒',Wohnen:'🏠',Auto:'🚗',Freizeit:'🎬'
 const $=id=>document.getElementById(id), money=n=>new Intl.NumberFormat('de-AT',{style:'currency',currency:'EUR'}).format(n), key='hb-v1';
 let db=JSON.parse(localStorage.getItem(key)||'{"transactions":[],"recurring":[]}'), view=new Date(); view.setDate(1);
 if(!db.categories) db.categories={...defaultCats};
+// Ensure older transactions can always be edited/deleted.
+db.transactions.forEach(t=>{if(!t.id)t.id=crypto.randomUUID()});
 function cats(){return db.categories}
 function save(){localStorage.setItem(key,JSON.stringify(db))}
 function ym(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
@@ -74,7 +76,9 @@ function openEditTransaction(id){
  $('editTxAmount').value=String(t.amount);
  $('editTxDate').value=t.date;
  $('editTxNote').value=t.note||'';
- fillSelect($('editTxCategory'),t.category);
+ const names=allCategoryNames();
+ $('editTxCategory').innerHTML=names.map(c=>`<option value="${esc(c)}" ${c===t.category?'selected':''}>${esc(c)}</option>`).join('');
+ $('editTxCategory').value=t.category;
  $('editTxDialog').showModal();
 }
 $('txList').addEventListener('click',e=>{
@@ -91,7 +95,7 @@ $('txList').addEventListener('click',e=>{
 $('editTxForm').onsubmit=e=>{
  e.preventDefault();
  const id=$('editTxId').value, t=db.transactions.find(x=>x.id===id); if(!t)return;
- const amount=Number($('editTxAmount').value);
+ const amount=num($('editTxAmount').value);
  if(!Number.isFinite(amount)||amount<=0){alert('Bitte einen gültigen Betrag eingeben.');return}
  t.type=$('editTxType').value;
  t.amount=amount;
